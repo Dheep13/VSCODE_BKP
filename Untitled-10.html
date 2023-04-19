@@ -1,0 +1,209 @@
+###########################################################################
+# Function: GenerateTechnicalData
+#
+# Purpose: Generate the technical data for DC30 output document
+#
+# Created By: Kelvin
+#
+# Event: On generate document
+#
+# Modifications:
+###########################################################################
+
+
+If Then Else ( ( ( Convert Null to Value ( PM_BaseModel_Standard_Agency_NAF_New Business Premium:month , 0 ) >= 25,000 ) And ( Convert Null to Value ( PM_BaseModel_Standard_Agency_NAF_New Business Premium:month , 0 ) < 50,000 ) ) , FVV_NAF_20000 , If Then Else ( ( Convert Null to Value ( PM_BaseModel_Standard_Agency_NAF_New Business Premium:month , 0 ) >= 50,000 ) , FVV_NAF_40000 , 0 ) ) 
+import CommonModule
+
+#dummyProductLocalList = ["70005203","70005205","70061000","70061001","70061002","70060999"]
+#Replaced with new dummy product code - Inc#713779
+#included drilling dummy articles
+dummyProductLocalList = ["70106298","70106299","70106300","7098010102","7098020201"]
+
+
+def GetDataDesc(attrCode, attrValue):
+    Obj = SqlHelper.GetFirst("SELECT TOP 1 [Desc] FROM TechnicalDataDesc WHERE UPPER(LTRIM(RTRIM(AttributeCode))) = UPPER(LTRIM(RTRIM('" + attrCode + "'))) AND UPPER(LTRIM(RTRIM(AttributeValue))) = UPPER(LTRIM(RTRIM('" + attrValue + "'))) ")
+    if Obj is not None:
+        return Obj.Desc
+    else:
+        return ""
+
+def PopulateTechnicalData(tbl, Quote):
+    
+    tbl.Rows.Clear()
+    productList = []
+    count = 0
+    #loop only the mainItems in the Quote
+    for mainItem in Quote.MainItems:
+        if (tbl.Name == "Technical_Data" and mainItem["Category_L2"].Value.strip().upper() != "AIR RECEIVER" and mainItem.PartNumber not in dummyProductLocalList and mainItem["Category_L1"].Value.strip().upper() != "JASA") or (tbl.Name == "Technical_Data_Local" and mainItem["Category_L2"].Value.strip().upper() == "AIR RECEIVER") or (tbl.Name == "Technical_Data_Local" and mainItem.PartNumber in dummyProductLocalList) or (tbl.Name == "Technical_Data_Local" and mainItem["Category_L1"].Value.strip().upper() == "JASA"):
+            #this condition is to prevent same product but in multiple line item scenario, technical data should only print out 1 instance of the technical data
+            if mainItem.PartNumber not in productList:
+                #append only if it is normal products
+                if mainItem.ProductName != "DUMMY ARTICLE GENERAL":
+                    productList.append(mainItem.PartNumber)
+                
+                newrow_main = tbl.AddNewRow()
+                ProductName = ""
+                LongProductName = ""
+                
+                ##for the product name printing
+                if mainItem.ProductName == "DUMMY ARTICLE GENERAL":
+                    ProductName = mainItem.Description
+                else:
+                    if mainItem["CustomerArticleDescription"].Value.strip() != "":
+                        ProductName = mainItem["CustomerArticleDescription"].Value.strip()
+                    else:
+                        ProductName = mainItem.ProductName
+
+                if mainItem["Category_L2"].Value.strip().upper() != "AIR RECEIVER":
+                    if mainItem.ProductName == "DUMMY ARTICLE GENERAL":
+                        #dummy product does not have any attribute, hence just display the productname
+                        LongProductName = ProductName
+                    else:
+                        #articles under parts or jasa do not display brand and L3 category
+                        if mainItem["Category_L1"].Value.strip().upper() in ("PARTS","JASA"):
+                            LongProductName = ProductName
+                            remarks = CommonModule.GetProductAttribute(mainItem, "remarks")
+                            if remarks != "":
+                                LongProductName += "\n" + remarks
+                        else:
+                            LongProductName = CommonModule.GetProductAttribute(mainItem, "Brand") + " " + mainItem["Category_L3"].Value + "\n" + ProductName
+                            remarks = CommonModule.GetProductAttribute(mainItem, "remarks")
+                            if remarks != "":
+                                LongProductName += "\n" + remarks
+                else:
+                    #do not display brand for air receiver
+                    LongProductName = mainItem["Category_L3"].Value + "\n" + ProductName
+                    remarks = CommonModule.GetProductAttribute(mainItem, "remarks")
+                    if remarks != "":
+                        LongProductName += "\n" + remarks
+
+                newrow_main.Item["Key"] = LongProductName.replace(Char1, SpecialCharDict[Char1]).replace(Char2, SpecialCharDict[Char2]).replace(Char3, SpecialCharDict[Char3]).replace(Char4, SpecialCharDict[Char4])
+
+                ##for the number row printing
+                count += 1
+                newrow_main.Item["No"] = count
+                ##for the attribute printing
+                #dummy product does not have any attribute, hence display from the container
+                if mainItem.ProductName == "DUMMY ARTICLE GENERAL":
+                    container = mainItem.SelectedAttributes.GetContainerByName("Dummy Article Technical Data")
+                    
+                    if container is not None:
+                        for row in container.Rows:
+                            newrow_data = tbl.AddNewRow()
+                            newrow_data.Item["Key"] = "    " + row["Name"].replace(Char1, SpecialCharDict[Char1]).replace(Char2, SpecialCharDict[Char2]).replace(Char3, SpecialCharDict[Char3]).replace(Char4, SpecialCharDict[Char4])
+                            newrow_data.Item["Delimiter"] = ":"
+                            newrow_data.Item["Value"] = row["Value"]
+
+                        #add a row spacer at the end
+                        newrow_data = tbl.AddNewRow()
+                else:
+                    #query out the attribute maintain in the seq list
+                    QueryItems = SqlHelper.GetList("select TOP 50 SEQ, AttributeCode, AttributeName, MoreDescFlag from TechnicalDataSEQ where UPPER(LTRIM(RTRIM(Category_L4))) = UPPER(LTRIM(RTRIM('" + mainItem["Category_L4"].Value + "'))) order by SEQ")
+
+                    #loop the attribute seq list
+                    for row in QueryItems:
+                        #loop against the mainItems attributes
+                        for attr in mainItem.SelectedAttributes:
+                            #only if there is a match, then add row
+                            if attr.Name == row.AttributeCode:
+                                newrow_data = tbl.AddNewRow()
+                                #add every attribute values in, though there should only be 1 selected value
+                                for attrValue in attr.Values:
+                                    
+                                    #if MoreDescFlag is Y, then retrieve the additional desc and append as new line to the attribute value
+                                    AppendDataDesc = ""
+                                    if row.MoreDescFlag.upper().strip() == "Y":
+                                        AppendDataDesc = "\n" + GetDataDesc(attr.Name, attrValue.Display)
+                                    
+                                    newrow_data.Item["Key"] = "    " + row.AttributeName.replace(Char1, SpecialCharDict[Char1]).replace(Char2, SpecialCharDict[Char2]).replace(Char3, SpecialCharDict[Char3]).replace(Char4, SpecialCharDict[Char4])
+                                    newrow_data.Item["Delimiter"] = ":"
+                                    newrow_data.Item["Value"] = attrValue.Display.replace(Char1, SpecialCharDict[Char1]).replace(Char2, SpecialCharDict[Char2]).replace(Char3, SpecialCharDict[Char3]).replace(Char4, SpecialCharDict[Char4]) + AppendDataDesc
+                    #add a row spacer at the end
+                    newrow_data = tbl.AddNewRow()
+    tbl.Save()
+    if tbl.Name == "Technical_Data":
+        Quote.GetCustomField("CFTechnicalData").Content = str(count)
+    else:
+        Quote.GetCustomField("CFTechnicalDataLocal").Content = str(count)
+
+def PopulatePriceSummary(tbl, Quote):
+    tbl.Rows.Clear()
+    count = 0.0
+    subcount = 0.0
+    pricesummary = 0
+    
+    for Item in Quote.Items:
+        if (tbl.Name == "Price_Summary_Import" and Item["Category_L2"].Value.strip().upper() != "AIR RECEIVER" and Item.PartNumber not in dummyProductLocalList and Item["Category_L1"].Value.strip().upper() != "JASA") or (tbl.Name == "Price_Summary_Local" and Item["Category_L2"].Value.strip().upper() == "AIR RECEIVER") or (tbl.Name == "Price_Summary_Local" and Item.PartNumber in dummyProductLocalList) or (tbl.Name == "Price_Summary_Local" and Item["Category_L1"].Value.strip().upper() == "JASA"):
+            ProductName = ""
+            
+            if Item.IsMainItem:
+                count += 1.0
+                subcount += 1.0
+                row = tbl.AddNewRow()
+
+                if Item.ProductName == "DUMMY ARTICLE GENERAL":
+                    ProductName = Item.Description
+                else:
+                    if Item["CustomerArticleDescription"].Value.strip() != "":
+                        ProductName = Item["CustomerArticleDescription"].Value.strip()
+                    else:
+                        ProductName = Item.ProductName
+
+                row.Item["No"] = count
+                row.Item["Desc"] = ProductName
+                row.Item["Qty"] = Item.Quantity
+                row.Item["UnitPrice"] = "{:,.0f}".format(round(Item["FinalNetPrice"].Value, 0))
+                row.Item["TotalPrice"] = "{:,.0f}".format(round(Item["SubTotal"].Value, 0))
+                pricesummary += Item["SubTotal"].Value
+            else:
+                subcount += 0.1
+                row = tbl.AddNewRow()
+                row.Item["No"] = subcount
+                row.Item["Desc"] = ProductName = Item.Description
+
+                if Item.ProductName != "DUMMY ARTICLE CHILD":
+                    row.Item["Qty"] = Item.Quantity
+                    row.Item["UnitPrice"] = "{:,.0f}".format(round(Item["FinalNetPrice"].Value, 0))
+                    row.Item["TotalPrice"] = "{:,.0f}".format(round(Item["SubTotal"].Value, 0))
+                    pricesummary += Item["SubTotal"].Value
+
+    tbl.Save()
+    if tbl.Name == "Price_Summary_Import":
+        Quote.GetCustomField("CFPriceSummaryImport").Content = str("{:,.0f}".format(round(pricesummary, 0)))
+    else:
+        Quote.GetCustomField("CFPriceSummaryLocal").Content = str("{:,.0f}".format(round(pricesummary, 0)))
+
+Char1 = "^2"
+Char2 = "^3"
+Char3 = "^TM"
+Char4 = "^OC"
+SpecialCharDict = {
+    "^2":"\xB2",
+    "^3":"\xB3",
+    "^TM":"™",
+    "^OC":"\xB0C"}
+
+#generate technical data only for I170 and DC30
+if Quote.GetCustomField("SalesOrg").Content == "I170" and Quote.GetCustomField("Distribution Channel").Content == "30":
+    
+    #generate for import products technical data
+    tbl = Quote.QuoteTables["Technical_Data"]
+    if tbl is not None:
+        PopulateTechnicalData(tbl, Quote)
+    
+    #generate for local products technical data
+    tbl = Quote.QuoteTables["Technical_Data_Local"]
+    if tbl is not None:
+        PopulateTechnicalData(tbl, Quote)
+    
+    #generate for import products price summary
+    tbl = Quote.QuoteTables["Price_Summary_Import"]
+    if tbl is not None:
+        PopulatePriceSummary(tbl, Quote)
+    
+    #generate for import products price summary
+    tbl = Quote.QuoteTables["Price_Summary_Local"]
+    if tbl is not None:
+        PopulatePriceSummary(tbl, Quote)
+    
+    Quote.Save(False)

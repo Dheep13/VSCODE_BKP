@@ -1,0 +1,27 @@
+
+GET https://0509.callidusondemand.com/api/v2/positions?$filter=name eq POS_A&select=name,position,title&expand=title
+Content-Type: application/json
+Authorization: Basic Deepan:Msd183$$
+
+###
+GET https://0509.callidusondemand.com/api/v2/salesOrders?$filter=orderId eq SM921P
+Content-Type: application/json
+Authorization: Basic Deepan:Msd183$$
+
+###
+
+GET https://0509.callidusondemand.com/api/v2/salesOrders?$filter=orderId eq SM921P
+Content-Type: application/json
+Authorization: Basic Deepan:Msd183$$
+
+
+###
+
+GET https://0509.callidusondemand.com/api/v2/salesOrders?skip=100&top=100&select=orderId
+Content-Type: application/json
+Authorization: Basic Deepan:Msd183$$
+
+###
+GET https://0509.callidusondemand.com/api/v2/salesOrders?$filter=orderId eq SM921P&top=100&select=salesOrderSeq
+Content-Type: application/json
+Authorization: Basic Deepan:Msd183$$

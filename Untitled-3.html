@@ -1,0 +1,54 @@
+@using WebSite.Controllers
+<div class="w960">
+    <div class="row user-page-container custom-fields-page-container fiori3-cart-tab-container cart-content fiori3-cart-tab-container-with-footer" id="cartContainer">
+        <div class="row" data-bind="visible: isInitalized" style="display: none;">
+            <div data-bind="css: { 'cart-view-mode': isInViewMode }">
+                <div class="clearfix">
+                                          <div id="customFieldsContainer" data-bind="foreach: customFieldsAndQuoteTables" class="fiori3-custom-fields-container custom-fields custom-fields-with-footer">
+
+                            </div>
+              </div>
+
+                @*Custom fields*@
+                <div class="clearfix">
+                   @Html.PartialWithNameAsComment("Sections/Tabs")
+                    <div id="customFieldsBox" class="box">
+                        <div class="clearfix">
+                            <div id="customFieldsContainer" data-bind="foreach: customFieldsAndQuoteTables" class="fiori3-custom-fields-container custom-fields custom-fields-with-footer">
+                              <!-- ko if:name == "Display Partial Order"-->
+<div class="fiori3-input-group col-md-4 col-xs-12 clearfix">    
+    <label data-bind="html: label" style="display: inline-block" class="control=label">Partial Order</label>
+    <span data-bind="visible: isRequiredIndicatorVisible" class="required">*</span>
+    <select class="form-control" id="Partial Order" >
+      <option value="Complete Order">Complete Order</option>
+    </select>
+      <span data-bind="text: error, enable: editable" class="required" role="alert" aria-live="assertive"></span>
+    </div>
+        <!-- /ko -->
+                                <!-- ko ifnot:name == "Display Partial Order"-->
+                                <!-- ko template: template -->
+                                <!--/ko -->
+                               <!--/ko -->
+                            </div>
+                        </div>
+                        <div class="cart-page-tab-footer" data-bind="visible: isSaveButtonAvailable() && !isInViewMode() && customFields().length > 0">
+                            <button id="customFieldsSaveButton" class="btn btn-primary fiori3-btn-primary" data-bind="text: saveActionText, click: function () { save(false, null) } "></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@Html.PartialWithNameAsComment("Templates/CartCustomFieldTemplates")
+@Html.PartialWithNameAsComment("/Views/CartList/Dialogs/ReassignCartDialogTemplate.cshtml")
+@Html.PartialWithNameAsComment("/Views/Cart/Dialogs/CreatePartialOrderDialogTemplate.cshtml")
+@Html.PartialWithNameAsComment("Dialogs/UpgradeProductsProgressBarTemplate")
+
+@if (CartController.HasQuoteTablesOnCurrentTab())
+{
+    @Html.PartialWithNameAsComment("Templates/CartTableTemplate")
+    @Html.PartialWithNameAsComment("Templates/CartTableCellTemplates")
+    @Html.PartialWithNameAsComment("EditablePagerTemplate")
+}
